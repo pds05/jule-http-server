@@ -27,6 +27,9 @@ public class HttpServer {
                     try {
                         byte[] buffer = new byte[8192];
                         int n = socket.getInputStream().read(buffer);
+                        if (n < 1) {
+                            return;
+                        }
                         String rawRequest = new String(buffer, 0, n);
                         HttpRequest httpRequest = new HttpRequest(rawRequest);
                         httpRequest.printInfo(true);
