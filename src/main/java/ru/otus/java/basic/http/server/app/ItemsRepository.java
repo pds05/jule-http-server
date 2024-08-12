@@ -27,4 +27,12 @@ public class ItemsRepository {
         items.add(item);
         return item;
     }
+
+    public boolean remove(Item item) {
+        return items.remove(item);
+    }
+
+    public Item get(long id) {
+        return items.stream().filter(item -> item.getId() == id).findFirst().orElse(null);
+    }
 }
