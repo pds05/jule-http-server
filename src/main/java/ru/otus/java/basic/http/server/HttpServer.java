@@ -1,16 +1,18 @@
 package ru.otus.java.basic.http.server;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class HttpServer {
-    public static final int REQUEST_HANDLER_THREADS = 10;
+    public static final Logger logger = LoggerFactory.getLogger(HttpServer.class.getName());
+
     private int port;
     private Dispatcher dispatcher;
-    private ExecutorService executorService;
 
     public HttpServer(int port) {
         this.port = port;
@@ -18,42 +20,31 @@ public class HttpServer {
     }
 
     public void start() {
-        executorService = Executors.newFixedThreadPool(REQUEST_HANDLER_THREADS);
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Сервер запущен на порту: " + port);
-            do {
-                Socket socket = serverSocket.accept();
-                Thread request = new Thread(()->{
-                    try {
-                        byte[] buffer = new byte[8192];
-                        int n = socket.getInputStream().read(buffer);
-                        if (n < 1) {
-                            return;
-                        }
-                        String rawRequest = new String(buffer, 0, n);
-                        HttpRequest httpRequest = new HttpRequest(rawRequest);
-                        httpRequest.printInfo(true);
-                        dispatcher.execute(httpRequest, socket.getOutputStream());
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    } finally {
-                        try {
-                            socket.close();
-                        } catch (IOException ex) {
-                            throw new RuntimeException(ex);
-                        }
+            logger.info("Сервер запущен на порту: " + port);
+            while (true) {
+                try (Socket socket = serverSocket.accept()) {
+                    byte[] buffer = new byte[8192];
+                    int n = socket.getInputStream().read(buffer);
+                    if (n < 1) {
+                        continue;
                     }
-                });
-                executorService.execute(request);
-            } while (true);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void shutdown(){
-        if (executorService != null) {
-            executorService.shutdownNow();
+                    String rawRequest = new String(buffer, 0, n);
+                    try {
+                        HttpRequest request = new HttpRequest(rawRequest);
+                        request.printInfo();
+                        dispatcher.execute(request, socket.getOutputStream());
+                    } catch (BadRequestException bre) {
+                        dispatcher.executeError(socket.getOutputStream(), bre);
+                    } catch (Exception e) {
+                        dispatcher.executeError(socket.getOutputStream(), new HttpRequestException(HttpURLConnection.HTTP_INTERNAL_ERROR, "Internal Server Error"));
+                    }
+                }
+            }
+        } catch (IOException ioe) {
+            logger.error("Сетевая ошибка привела к остановке сервера: " + ioe.getMessage(), ioe);
+        } catch (Exception e) {
+            logger.error("Непредвиденная ошибка привела к остановке сервера: " + e.getMessage(), e);
         }
     }
 }
