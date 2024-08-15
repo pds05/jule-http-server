@@ -1,15 +1,31 @@
 package ru.otus.java.basic.http.server;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.net.HttpURLConnection;
 import java.util.HashMap;
 import java.util.Map;
 
 public class HttpRequest {
+    public static final Logger logger = LoggerFactory.getLogger(HttpRequest.class.getName());
+
     private String rawRequest;
     private String uri;
     private HttpMethod method;
     private Map<String, String> parameters;
     private Map<String, String> properties;
     private String body;
+    private HttpResponse httpResponse = new HttpResponse();
+
+    public HttpRequest(String rawRequest) {
+        this.rawRequest = rawRequest;
+        this.parse();
+    }
+
+    public HttpResponse getHttpResponse() {
+        return httpResponse;
+    }
 
     public String getRoutingKey() {
         return method + " " + uri;
@@ -21,11 +37,6 @@ public class HttpRequest {
 
     public String getBody() {
         return body;
-    }
-
-    public HttpRequest(String rawRequest) {
-        this.rawRequest = rawRequest;
-        this.parse();
     }
 
     private Map<String, String> parseParameters(String uri) {
@@ -62,7 +73,10 @@ public class HttpRequest {
         try{
             this.method = HttpMethod.valueOf(rawMethod);
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Метод " + rawMethod + " не доступен");
+            throw new HttpRequestException(HttpURLConnection.HTTP_NOT_IMPLEMENTED, "Not Implemented");
+        }
+        if(!method.isSupported()) {
+            throw new HttpRequestException(HttpURLConnection.HTTP_BAD_METHOD, "Method Not Allowed");
         }
         this.parameters = parseParameters(uri);
         this.properties = parseProperties(rawRequest);
@@ -85,15 +99,13 @@ public class HttpRequest {
         return properties;
     }
 
-    public String printInfo(boolean showRawRequest) {
+    public void printInfo() {
         StringBuilder httpRequest = new StringBuilder();
-        httpRequest.append("uri: " + uri)
-                .append(System.lineSeparator() + "method: " + method)
-                .append(System.lineSeparator() + "body: " + body)
-                .append(System.lineSeparator() + "properties: " + properties);
-        if (showRawRequest) {
-            httpRequest.append(System.lineSeparator() + rawRequest);
-        }
-        return httpRequest.toString();
+        httpRequest.append("uri: ").append(uri).append(System.lineSeparator())
+                .append("method: ").append(method).append(System.lineSeparator())
+                .append("body: ").append(body).append(System.lineSeparator())
+                .append("properties: ").append(properties);
+        logger.info(httpRequest.toString());
+        logger.debug(rawRequest);
     }
 }
